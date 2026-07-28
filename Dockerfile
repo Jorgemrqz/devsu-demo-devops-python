@@ -37,7 +37,7 @@ EXPOSE 8000
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8000/api/users || exit 1
+  CMD curl -f http://localhost:8000/api/users/ || exit 1
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "demo.wsgi:application"]

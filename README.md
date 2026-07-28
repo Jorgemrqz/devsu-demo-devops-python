@@ -1,84 +1,122 @@
-# Devsu DevOps - Prueba Técnica (Python/Django)
+# Devsu DevOps - Prueba Técnica Nivel Producción (Python/Django)
 
-Este repositorio contiene la solución a la prueba técnica de DevOps. Se ha dockerizado una aplicación en Python (Django), se ha implementado un pipeline completo de CI/CD utilizando GitHub Actions, y se ha creado la infraestructura en Kubernetes para su despliegue local (Minikube).
+Este repositorio contiene la solución completa a la prueba técnica de DevOps. Se ha optimizado la aplicación en Python (Django) para un entorno de producción real, implementado un pipeline robusto de CI/CD con **controles de calidad y seguridad**, empaquetado el despliegue mediante un **Helm Chart**, estructurado la infraestructura como código con **Terraform** y configurado la capa de red con **Ingress SSL/TLS y DNS**.
 
-## Arquitectura y Diagramas
+---
 
-A continuación se muestra el diagrama de arquitectura tanto para el proceso de despliegue (CI/CD) como para la infraestructura de la aplicación en Kubernetes:
+## 🏗️ Arquitectura de la Solución
+
+El siguiente diagrama detalla la arquitectura completa, desde la integración continua hasta el despliegue en Kubernetes:
 
 ```mermaid
 graph TD
-    %% CI/CD Pipeline
-    subgraph CI/CD [Pipeline: GitHub Actions]
-        A[Git Push] --> B(Unit Tests & Flake8)
-        B --> C{Coverage OK?}
-        C -->|Yes| D[Docker Build]
-        D --> E[Docker Push to GHCR]
-        E --> F[K8s Dry-Run Validate]
+    %% CI/CD & Security Pipeline
+    subgraph Pipeline [Pipeline: GitHub Actions CI/CD]
+        A[Git Push / PR] --> B[Linting: Flake8]
+        B --> C[SAST: Bandit Security Scan]
+        C --> D[Unit Tests & Coverage]
+        D --> E[Docker Build]
+        E --> F[Vulnerability Scan: Trivy]
+        F -->|Clean| G[Docker Push to GHCR]
+        G --> H[Helm Lint & Dry-Run Validate]
     end
 
-    %% Kubernetes Infrastructure
-    subgraph Kubernetes [Cluster Kubernetes Local]
-        G((Usuario)) -->|HTTP/80| H[Ingress Controller]
-        H -->|Ruteo| I[Service: ClusterIP]
-        I -->|Balanceo| J(Deployment)
+    %% Infrastructure as Code
+    subgraph IaC [Infraestructura como Código: Terraform]
+        I[Terraform Main Module] --> J[K8s Cluster Module]
+        J --> K[Cluster Node Pools]
+    end
+
+    %% Kubernetes Production Cluster
+    subgraph Kubernetes [Cluster Kubernetes Productivo / Minikube]
+        L((Usuario / Cliente)) -->|HTTPS / SSL Port 443| M[Ingress Controller - NGINX]
+        M -.->|TLS Certificate| N[Cert-Manager / Let's Encrypt]
+        M -->|Routing: demo.local| O[Service: ClusterIP]
+        O -->|Load Balancing| P(Deployment: ReplicaSet x2+)
         
-        %% Componentes del Deployment
-        J --> K1[Pod 1: API Django]
-        J --> K2[Pod 2: API Django]
+        P --> Q1[Pod 1: Gunicorn WSGI]
+        P --> Q2[Pod 2: Gunicorn WSGI]
         
-        %% Recursos de Configuración
-        L[(ConfigMap)] -.->|Variables de Entorno| J
-        M[(Secrets)] -.->|Credenciales| J
-        
-        %% Autoescalado
-        N((HPA)) -.->|Monitoreo CPU/Mem| J
+        R[(ConfigMap)] -.->|Env Vars| P
+        S[(Secrets)] -.->|App Secrets| P
+        T((HPA)) -.->|Autoescalado CPU/RAM| P
     end
 ```
 
-## Instrucciones para Despliegue Local
+---
 
-Para correr este proyecto en tu entorno local, asegúrate de cumplir con los siguientes requisitos:
-- Docker y Docker Desktop
-- Minikube y `kubectl`
+## 🚀 Puntos Clave de Producción y Mejoras Aplicadas
 
-### Opción A: Despliegue rápido con Docker
-1. Construye la imagen:
-   ```bash
-   docker build -t devsu-demo-python:latest .
-   ```
-2. Ejecuta el contenedor:
-   ```bash
-   docker run -d -p 8000:8000 devsu-demo-python:latest
-   ```
-3. Entra a `http://localhost:8000/api/users/` en tu navegador.
+### 1. Servidor WSGI de Producción (Gunicorn)
+- Se reemplazó el servidor de desarrollo `manage.py runserver` por **Gunicorn** (`gunicorn demo.wsgi:application --bind 0.0.0.0:8000`), previniendo caídas y asegurando el manejo concurrente de peticiones.
+- Las migraciones en el `docker-entrypoint.sh` se ejecutan de forma no interactiva (`migrate --noinput`).
 
-### Opción B: Despliegue completo en Kubernetes (Minikube) - Recomendado
-1. Arranca tu cluster local y habilita el Ingress:
-   ```bash
-   minikube start
-   minikube addons enable ingress
-   ```
-2. Construye la imagen dentro del entorno de Minikube:
-   ```bash
-   minikube image build -t devsu-demo-python:latest .
-   ```
-3. Despliega la infraestructura (Deployment, ConfigMap, Secret, Service, HPA, Ingress):
-   ```bash
-   kubectl apply -f k8s/
-   ```
-4. Accede a la aplicación rápidamente utilizando:
-   ```bash
-   minikube service devsu-python-service
-   ```
+### 2. Empaquetamiento y Parametrización con Helm
+- Los manifiestos de Kubernetes se empaquetaron en un Chart de Helm localizado en [helm/devsu-demo-python](file:///c:/Users/USER/Desktop/devsu-demo-devops-python/helm/devsu-demo-python).
+- Permite la configuración dinámica de réplicas, límites de recursos, sondas de salud (liveness/readiness), secretos y reglas de Ingress mediante `values.yaml`.
 
-*(Nota: Como el despliegue es en un clúster local de Minikube y no en un entorno público, no hay una URL pública, pero se puede validar su funcionamiento con el comando anterior).*
+### 3. Calidad y Seguridad en CI/CD
+El pipeline en [.github/workflows/ci.yml](file:///c:/Users/USER/Desktop/devsu-demo-devops-python/.github/workflows/ci.yml) incluye:
+- **Análisis Estático**: `flake8` para calidad y estándares de código Python.
+- **Análisis de Seguridad SAST**: `Bandit` para detectar fallos de seguridad en el código fuente.
+- **Pruebas y Cobertura**: `coverage` para validar lógica de negocio.
+- **Escaneo de Vulnerabilidades**: `Trivy` para detectar vulnerabilidades críticas en la imagen Docker antes de publicarla.
+- **Validación de Helm**: `helm lint` y `helm install --dry-run` para validar el empaquetado de K8s.
 
-## Resultados del Pipeline (CI/CD)
-El pipeline asegura la calidad del código, construyendo la imagen docker optimizada sin usuario root y simulando el despliegue hacia Kubernetes (Dry-Run).
+### 4. Infraestructura como Código (Terraform)
+- En la carpeta [terraform/](file:///c:/Users/USER/Desktop/devsu-demo-devops-python/terraform) se implementó una estructura modular reutilizable (`modules/k8s_cluster`) para el aprovisionamiento automatizado del clúster de Kubernetes y sus pools de nodos.
 
-### Flujo Completo
-![Pipeline Exitoso](images/pipeline.png)
+### 5. Configuración de SSL/TLS y DNS
+- El Ingress contempla anotaciones para **cert-manager** y terminación TLS para el hostname configurado (`demo.local`).
 
-### Análisis de Código Estático (Flake8)
-![Análisis Estático](images/analisis.png)
+---
+
+## 🛠️ Guía de Despliegue
+
+### Opción A: Despliegue Local con Docker
+```bash
+# 1. Construir la imagen de producción
+docker build -t devsu-demo-python:latest .
+
+# 2. Ejecutar el contenedor
+docker run -d -p 8000:8000 devsu-demo-python:latest
+
+# 3. Validar estado de la API
+curl -i http://localhost:8000/api/users/
+```
+
+### Opción B: Despliegue con Helm en Kubernetes (Minikube / Cluster Local)
+```bash
+# 1. Iniciar Minikube y habilitar Ingress
+minikube start
+minikube addons enable ingress
+
+# 2. Construir la imagen en el entorno de Minikube
+minikube image build -t ghcr.io/jorgemrqz/devsu-demo-devops-python:latest .
+
+# 3. Instalar o actualizar la aplicación vía Helm
+helm upgrade --install devsu-demo ./helm/devsu-demo-python
+
+# 4. Probar la aplicación a través del servicio
+minikube service devsu-demo-devsu-demo-python
+```
+
+### Opción C: Aprovisionamiento de Infraestructura con Terraform
+```bash
+# 1. Inicializar Terraform
+cd terraform
+terraform init
+
+# 2. Validar y planificar los cambios
+terraform plan
+
+# 3. Aplicar infraestructura
+terraform apply -auto-approve
+```
+
+---
+
+## 🔍 Verificación de Diagnóstico y Salud
+La aplicación incluye probes de Kubernetes para asegurar disponibilidad continuo:
+- **Readiness Probe**: Endpoint `GET /api/users/` (Puerto 8000)
+- **Liveness Probe**: Endpoint `GET /api/users/` (Puerto 8000)

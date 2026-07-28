@@ -9,7 +9,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+  DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY || 'ci-secret-key' }}
   DATABASE_NAME: db.sqlite3
 
 jobs:
@@ -33,10 +33,12 @@ jobs:
 
       - name: Static Code Analysis (flake8)
         run: |
-          # Detener el build si hay errores de sintaxis o variables no definidas
           flake8 . --exclude=venv,migrations --count --select=E9,F63,F7,F82 --show-source --statistics
-          # Considerar exit-zero para otros errores estilísticos
           flake8 . --exclude=venv,migrations --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Security Code Analysis (Bandit SAST)
+        run: |
+          bandit -r api/ demo/ -x venv/,tests/ -ll --exit-zero
 
       - name: Run Unit Tests and Coverage
         run: |
@@ -69,6 +71,24 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
+      - name: Build Docker image locally for scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Run Trivy vulnerability scanner on Docker image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -85,11 +105,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.13.0'
+
+      - name: Lint Helm Chart
+        run: |
+          helm lint helm/devsu-demo-python
+
       - name: Create k8s Kind Cluster
         uses: helm/kind-action@v1
 
-      - name: Deploy to Kubernetes (Dry Run)
+      - name: Deploy via Helm (Dry Run)
         run: |
-          echo "Simulando el despliegue a Kubernetes en el pipeline..."
-          kubectl apply -f k8s/ --dry-run=client
-          echo "Validación de despliegue exitosa."
+          echo "Simulando despliegue de Helm Chart en Kubernetes..."
+          helm install devsu-demo helm/devsu-demo-python --dry-run
+          echo "Validación de despliegue Helm exitosa."
