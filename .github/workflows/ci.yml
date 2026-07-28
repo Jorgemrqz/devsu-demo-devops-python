@@ -8,7 +8,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
   DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY || 'ci-secret-key' }}
   DATABASE_NAME: db.sqlite3
 
@@ -57,6 +56,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Lowercase Repository Name for Docker
+        run: |
+          echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
