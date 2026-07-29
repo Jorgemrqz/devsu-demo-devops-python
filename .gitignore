@@ -17,3 +17,8 @@ db.sqlite3
 # IDEs
 .vscode/
 .idea/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup

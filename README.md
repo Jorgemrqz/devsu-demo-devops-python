@@ -113,6 +113,7 @@ terraform plan
 # 3. Aplicar infraestructura
 terraform apply -auto-approve
 ```
+> 📄 **Evidencia de Despliegue IaC**: Puedes consultar la salida real del comando `terraform apply` y `terraform output` en el archivo [terraform/apply_output.log](file:///c:/Users/USER/Desktop/devsu-demo-devops-python/terraform/apply_output.log).
 
 ---
 
