@@ -8,6 +8,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  IMAGE_NAME: ''
   DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY || 'ci-secret-key' }}
   DATABASE_NAME: db.sqlite3
 
